@@ -43,6 +43,7 @@ class Login : AppCompatActivity() {
         ivProfile.setOnClickListener( View.OnClickListener {
             checkPermission()
         })
+
     }
 
     fun loginToFirebase(email:String, password:String){
@@ -85,7 +86,7 @@ class Login : AppCompatActivity() {
         val baos = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
         val data = baos.toByteArray()
-        
+
         val uploadTask= imageRef.putBytes(data)
 
         uploadTask.addOnFailureListener{
