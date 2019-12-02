@@ -13,12 +13,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Toast
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.google.firebase.storage.FirebaseStorage
+import com.squareup.picasso.Picasso
 import kotlinx.android.synthetic.main.activity_login.*
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.add_ticket.*
 import kotlinx.android.synthetic.main.add_ticket.view.*
+import kotlinx.android.synthetic.main.tweets_ticket.view.*
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,10 +48,11 @@ class MainActivity : AppCompatActivity() {
         userUID = bundle!!.getString("uid")
 
         listTweet.add(Ticket("0","him","url","add"))
-        listTweet.add(Ticket("1","him","url","maruko"))
 
         adapter = MyTweetAdapter(this,listTweet)
         lvTweet.adapter = adapter
+
+        LoadPost()
     }
 
     inner class MyTweetAdapter:BaseAdapter{
@@ -81,10 +87,46 @@ class MainActivity : AppCompatActivity() {
 
                 })
                 return myView
-                
+
             }else{
-                //Load tweet ticket
-                var myView = layoutInflater.inflate(R.layout.tweets_ticket, null)
+                var myView=layoutInflater.inflate(R.layout.tweets_ticket,null)
+                myView.txt_tweet.text = myTweet.text
+
+                //myView.tweet_picture.setImageURI(mytweet.tweetImageURL)
+                Picasso.get().load(myTweet.image).into(myView.tweet_picture)
+
+                myRef.child("Users").child(myTweet.personUID!!)
+                    .addValueEventListener(object :ValueEventListener{
+
+                        override fun onDataChange(dataSnapshot: DataSnapshot) {
+
+                            try {
+
+                                var td= dataSnapshot!!.value as HashMap<String,Any>
+
+                                for(key in td.keys){
+
+                                    var userInfo= td[key] as String
+                                    if(key.equals("ProfileImage")){
+                                        Picasso.get().load(userInfo).into(myView.picture_path)
+                                    }else{
+                                        myView.txtUserName.text = userInfo
+                                    }
+
+
+
+                                }
+
+                            }catch (ex:Exception){}
+
+
+                        }
+
+                        override fun onCancelled(p0: DatabaseError) {
+
+                        }
+                    })
+
                 return myView
             }
 
@@ -163,4 +205,45 @@ class MainActivity : AppCompatActivity() {
         val split =  email.split("@")
         return split[0]
     }
+
+    fun LoadPost(){
+
+        myRef.child("posts")
+            .addValueEventListener(object :ValueEventListener{
+
+                override fun onDataChange(dataSnapshot: DataSnapshot) {
+
+                    try {
+
+                        listTweet.clear()
+                        listTweet.add(Ticket("0","him","url","add"))
+                        listTweet.add(Ticket("0","him","url","ads"))
+                        var td= dataSnapshot!!.value as HashMap<String,Any>
+
+                        for(key in td.keys){
+
+                            var post= td[key] as HashMap<String,Any>
+
+                            listTweet.add(Ticket(key,
+
+                                post["text"] as String,
+                                post["postImage"] as String
+                                ,post["userUID"] as String))
+
+
+                        }
+
+
+                        adapter!!.notifyDataSetChanged()
+                    }catch (ex:Exception){}
+
+
+                }
+
+                override fun onCancelled(p0: DatabaseError) {
+
+                }
+            })
+    }
+
 }
