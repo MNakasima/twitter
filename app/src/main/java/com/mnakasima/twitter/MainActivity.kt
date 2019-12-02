@@ -13,6 +13,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Toast
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -28,96 +30,110 @@ import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.collections.ArrayList
-
 class MainActivity : AppCompatActivity() {
 
-    var listTweet = arrayListOf<Ticket>()
-    var adapter:MyTweetAdapter?=null
-    var myEmail:String?=null
-    var userUID:String?=null
+    private var database= FirebaseDatabase.getInstance()
+    private var myRef=database.reference
 
-    private var database = FirebaseDatabase.getInstance()
-    private var myRef = database.reference
 
+    var ListTweets=ArrayList<Ticket>()
+    var adpater:MyTweetAdpater?=null
+    var myemail:String?=null
+    var UserUID:String?=null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        var bundle:Bundle? = intent.extras
-        myEmail = bundle!!.getString("email")
-        userUID = bundle!!.getString("uid")
+        var b:Bundle=intent.extras!!
+        myemail=b.getString("email")
+        UserUID=b.getString("uid")
+        //Dummy data
 
-        listTweet.add(Ticket("0","him","url","add"))
+        ListTweets.add(Ticket("0","him","url","add"))
 
-        adapter = MyTweetAdapter(this,listTweet)
-        lvTweet.adapter = adapter
+
+        adpater= MyTweetAdpater(this,ListTweets)
+        lvTweet.adapter=adpater
 
         LoadPost()
     }
 
-    inner class MyTweetAdapter:BaseAdapter{
 
-        var listTweetAdapter = arrayListOf<Ticket>()
+    inner class  MyTweetAdpater:BaseAdapter{
+        var listNotesAdpater=ArrayList<Ticket>()
         var context:Context?=null
-
-        constructor(context:Context, listTweetAdapter: ArrayList<Ticket>):super(){
-            this.listTweetAdapter=listTweetAdapter
-            this.context = context
+        constructor(context:Context, listNotesAdpater:ArrayList<Ticket>):super(){
+            this.listNotesAdpater=listNotesAdpater
+            this.context=context
         }
 
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+        override fun getView(p0: Int, p1: View?, p2: ViewGroup?): View {
 
-            var myTweet = listTweetAdapter[position]
 
-            if (myTweet.personUID.equals("add")){
-                //Load add ticket
+            var mytweet = listNotesAdpater[p0]
+
+            if (mytweet.personUID.equals("add")) {
                 var myView = layoutInflater.inflate(R.layout.add_ticket, null)
 
                 myView.iv_attach.setOnClickListener(View.OnClickListener {
-
                     loadImage()
 
                 })
 
-                myView.iv_post.setOnClickListener( View.OnClickListener {
+                myView.iv_post.setOnClickListener(View.OnClickListener {
+                    //upload server
 
                     myRef.child("posts").push().setValue(
-                        PostInfo( userUID!!, myView.etPost.text.toString() , downloadURL!!))
-                    myView.etPost.setText("")
+                        PostInfo(
+                            UserUID!!,
+                            myView.etPost.text.toString(), DownloadURL!!
+                        )
+                    )
 
+                    myView.etPost.setText("")
                 })
                 return myView
+            } else if (mytweet.personUID.equals("loading")) {
+                 var myView=layoutInflater.inflate(R.layout.loading_ticket,null)
+                 return myView
+            } else if (mytweet.personUID.equals("ads")) {
+                var myView=layoutInflater.inflate(R.layout.ads_ticket,null)
 
-            }else{
-                var myView=layoutInflater.inflate(R.layout.tweets_ticket,null)
-                myView.txt_tweet.text = myTweet.text
+                var mAdView = myView.findViewById(R.id.adView) as AdView
+                 val adRequest = AdRequest.Builder().build()
+                 mAdView.loadAd(adRequest)
+                return myView
+            } else {
+                var myView = layoutInflater.inflate(R.layout.tweets_ticket, null)
+                myView.txt_tweet.text = mytweet.text
 
                 //myView.tweet_picture.setImageURI(mytweet.tweetImageURL)
-                Picasso.get().load(myTweet.image).into(myView.tweet_picture)
+                Picasso.get().load(mytweet.image).into(myView.tweet_picture)
 
-                myRef.child("Users").child(myTweet.personUID!!)
-                    .addValueEventListener(object :ValueEventListener{
+
+                myRef.child("Users").child(mytweet.personUID!!)
+                    .addValueEventListener(object : ValueEventListener {
 
                         override fun onDataChange(dataSnapshot: DataSnapshot) {
 
                             try {
 
-                                var td= dataSnapshot!!.value as HashMap<String,Any>
+                                var td = dataSnapshot!!.value as HashMap<String, Any>
 
-                                for(key in td.keys){
+                                for (key in td.keys) {
 
-                                    var userInfo= td[key] as String
-                                    if(key.equals("ProfileImage")){
+                                    var userInfo = td[key] as String
+                                    if (key.equals("ProfileImage")) {
                                         Picasso.get().load(userInfo).into(myView.picture_path)
-                                    }else{
+                                    } else {
                                         myView.txtUserName.text = userInfo
                                     }
 
 
-
                                 }
 
-                            }catch (ex:Exception){}
+                            } catch (ex: Exception) {
+                            }
 
 
                         }
@@ -130,81 +146,87 @@ class MainActivity : AppCompatActivity() {
                 return myView
             }
 
+
         }
 
-        override fun getItem(position: Int): Any {
-            return listTweetAdapter[position]
+        override fun getItem(p0: Int): Any {
+            return listNotesAdpater[p0]
         }
 
-        override fun getItemId(position: Int): Long {
-            return position.toLong()
-    }
+        override fun getItemId(p0: Int): Long {
+            return p0.toLong()
+        }
 
         override fun getCount(): Int {
-            return listTweetAdapter.size
+
+            return listNotesAdpater.size
+
         }
+
 
     }
 
-    val PICK_IMAGE_CODE = 123
+
+    //Load image
+
+    val PICK_IMAGE_CODE=123
     fun loadImage(){
 
-        var intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-
-        startActivityForResult(intent, PICK_IMAGE_CODE)
-
+        var intent= Intent(Intent.ACTION_PICK,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        startActivityForResult(intent,PICK_IMAGE_CODE)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        if(requestCode == PICK_IMAGE_CODE && data != null && resultCode == Activity.RESULT_OK){
-            val selectedImage = data.data
-            val filePathColum = arrayOf(MediaStore.Images.Media.DATA)
-            val cursor = contentResolver.query(selectedImage!!, filePathColum, null , null ,null)
+        if(requestCode==PICK_IMAGE_CODE  && data!=null && resultCode == RESULT_OK){
+
+            val selectedImage=data.data
+            val filePathColum= arrayOf(MediaStore.Images.Media.DATA)
+            val cursor= contentResolver.query(selectedImage!!,filePathColum,null,null,null)
             cursor!!.moveToFirst()
-            val columnIndex = cursor.getColumnIndex(filePathColum[0])
-            val picturePath = cursor.getString(columnIndex)
-            cursor.close()
-            uploadImage(BitmapFactory.decodeFile(picturePath))
+            val coulomIndex=cursor!!.getColumnIndex(filePathColum[0])
+            val picturePath=cursor!!.getString(coulomIndex)
+            cursor!!.close()
+            UploadImage(BitmapFactory.decodeFile(picturePath))
         }
+
     }
 
+    var DownloadURL:String?=""
+    fun UploadImage(bitmap:Bitmap){
+        ListTweets.add(0,Ticket("0","him","url","loading"))
+        adpater!!.notifyDataSetChanged()
 
-    var downloadURL:String?=null
-    fun uploadImage(bitmap:Bitmap){
-
-        val storage = FirebaseStorage.getInstance()
-        val storageRef = storage.getReferenceFromUrl("gs://twitter-6f828.appspot.com")
-
-        val df = SimpleDateFormat("ddMMyyHHmmss")
-        val dataobj = Date()
-
-        val imagePath = splitSting(myEmail!!) +"."+df.format(dataobj)+ ".jpg"
-        val imageRef = storageRef.child("ImagesPost/"+imagePath)
-
-        val baos = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
-        val data = baos.toByteArray()
-
-        val uploadTask= imageRef.putBytes(data)
-
+        val storage= FirebaseStorage.getInstance()
+        val storgaRef=storage.getReferenceFromUrl("gs://gameudemy.appspot.com")
+        val df= SimpleDateFormat("ddMMyyHHmmss")
+        val dataobj= Date()
+        val imagePath= SplitString(myemail!!) + "."+ df.format(dataobj)+ ".jpg"
+        val ImageRef=storgaRef.child("imagePost/"+imagePath )
+        val baos= ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG,100,baos)
+        val data= baos.toByteArray()
+        val uploadTask=ImageRef.putBytes(data)
         uploadTask.addOnFailureListener{
+            Toast.makeText(applicationContext,"fail to upload", Toast.LENGTH_LONG).show()
+        }.addOnSuccessListener { taskSnapshot ->
 
-            Toast.makeText(applicationContext,"fail to upload image", Toast.LENGTH_LONG).show()
-
-        }.addOnSuccessListener {
-
-                taskSnapshot ->
-            downloadURL = taskSnapshot.metadata!!.reference!!.downloadUrl.toString()
+            DownloadURL= taskSnapshot.storage.downloadUrl.toString()!!
+            ListTweets.removeAt(0)
+            adpater!!.notifyDataSetChanged()
 
         }
     }
 
-    fun splitSting(email:String):String{
-        val split =  email.split("@")
+
+    fun SplitString(email:String):String{
+        val split= email.split("@")
         return split[0]
     }
+
+
 
     fun LoadPost(){
 
@@ -215,16 +237,16 @@ class MainActivity : AppCompatActivity() {
 
                     try {
 
-                        listTweet.clear()
-                        listTweet.add(Ticket("0","him","url","add"))
-                        listTweet.add(Ticket("0","him","url","ads"))
+                        ListTweets.clear()
+                        ListTweets.add(Ticket("0","him","url","add"))
+                        ListTweets.add(Ticket("0","him","url","ads"))
                         var td= dataSnapshot!!.value as HashMap<String,Any>
 
                         for(key in td.keys){
 
                             var post= td[key] as HashMap<String,Any>
 
-                            listTweet.add(Ticket(key,
+                            ListTweets.add(Ticket(key,
 
                                 post["text"] as String,
                                 post["postImage"] as String
@@ -234,7 +256,7 @@ class MainActivity : AppCompatActivity() {
                         }
 
 
-                        adapter!!.notifyDataSetChanged()
+                        adpater!!.notifyDataSetChanged()
                     }catch (ex:Exception){}
 
 
